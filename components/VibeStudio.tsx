@@ -9,6 +9,7 @@ type Language = "English" | "Banglish" | "Urdu" | "Bangla" | "Hindi";
 
 
 interface GeneratedContent {
+  id: string; // Added stable ID
   captions: string[];
   songs: {
     title: string;
@@ -38,9 +39,9 @@ export default function VibeStudio() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState(FUNNY_LOADER_TEXTS[0]);
-  const [results, setResults] = useState<GeneratedContent | null>(null);
+  const [history, setHistory] = useState<GeneratedContent[]>([]);
   const [error, setError] = useState("");
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<{historyIndex: number, itemIndex: number} | null>(null);
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
   const [youtubeQuery, setYoutubeQuery] = useState("");
   const [activeYoutubeLink, setActiveYoutubeLink] = useState("");
@@ -125,7 +126,7 @@ export default function VibeStudio() {
     const preview = URL.createObjectURL(file);
     setImagePreview(preview);
     setError("");
-    setResults(null); 
+    setHistory([]); 
   };
 
   const handleGenerate = async () => {
@@ -158,7 +159,10 @@ export default function VibeStudio() {
 
       if (!response.ok) throw new Error("Failed to generate content");
       const data = await response.json();
-      setResults(data);
+      // Ensure the ID is absolutely unique and never empty
+      const uniqueId = `vibe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const resultWithId = { ...data, id: uniqueId };
+      setHistory(prev => [resultWithId, ...prev]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -166,9 +170,9 @@ export default function VibeStudio() {
     }
   };
 
-  const copyToClipboard = (text: string, index: number) => {
+  const copyToClipboard = (text: string, historyIndex: number, itemIndex: number) => {
     navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
+    setCopiedIndex({ historyIndex, itemIndex });
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
@@ -198,19 +202,19 @@ export default function VibeStudio() {
     <div id="vibe-studio" className="relative w-full min-h-screen bg-black text-white py-20 px-6 lg:px-12 border-t border-white/10">
        <div className="max-w-[1600px] mx-auto">
         
-       {!results && (
+       {history.length === 0 && (
             <div className="mb-12 text-center space-y-2">
-            <h2 className="text-5xl md:text-5xl font-bold tracking-tighter">
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tighter">
                 Jhakkas <span className="text-rose-500 italic">AI</span> Studio
             </h2>
-            <p className="text-white/60">Upload photo • Pick Vibe • Go Viral</p>
+            <p className="text-white/60 text-sm md:text-base">Upload photo • Pick Vibe • Go Viral</p>
             </div>
         )}
 
-        <div className={`grid gap-8 transition-all duration-500 ${results ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1 max-w-2xl mx-auto"}`}>
+        <div className={`grid gap-8 transition-all duration-500 ${history.length > 0 ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1 max-w-2xl mx-auto"}`}>
           
           {/* LEFT PANEL: INPUT FORM */}
-          <div className={`transition-all duration-500 ${results ? "lg:col-span-4 lg:sticky lg:top-8 self-start" : "w-full"}`}>
+          <div className={`transition-all duration-500 ${history.length > 0 ? "lg:col-span-4 lg:sticky lg:top-8 self-start" : "w-full"}`}>
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 space-y-6">
                 
                 {/* Compact Image Upload */}
@@ -317,74 +321,102 @@ export default function VibeStudio() {
           </div>
 
           {/* RIGHT PANEL: RESULTS */}
-          {results && (
+          {history.length > 0 && (
             <motion.div 
                 variants={container}
                 initial="hidden"
                 animate="show"
-                className="lg:col-span-8 space-y-8"
+                className="lg:col-span-8 space-y-12"
             >
                 {/* Header with Regenerate Button */}
-                <div className="flex justify-end">
+                <div className="flex justify-end sticky top-0 z-10 py-2 bg-black/50 backdrop-blur-sm">
                     <button
                         onClick={handleRegenerate}
                         disabled={!canRegenerate || isLoading}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-white text-black font-bold text-xs hover:bg-white/90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-white/5"
                     >
-                         <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                         <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                          {isLoading ? "Generating..." : canRegenerate ? "Regenerate Vibe" : `Wait ${cooldown}s`}
                     </button>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-8">
-                    {/* Captions Column */}
-                    <div className="space-y-4">
-                         <motion.h3 variants={item} className="text-xl font-bold flex items-center gap-2 mb-6 text-white/80">
-                            <Type className="w-5 h-5 text-blue-500" /> Viral Captions
-                        </motion.h3>
-                        {results.captions.map((caption, idx) => (
-                            <motion.div key={idx} variants={item} className="group relative p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition hover:border-white/20">
-                                <p className="text-lg font-medium leading-relaxed pr-8 font-mono opacity-90">{caption}</p>
-                                <button 
-                                    onClick={() => copyToClipboard(caption, idx)}
-                                    className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white text-white/50 hover:text-black transition"
-                                    title="Copy"
-                                >
-                                    {copiedIndex === idx ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                </button>
-                            </motion.div>
-                        ))}
-                    </div>
-
-                    {/* Songs Column */}
-                    <div className="space-y-4">
-                        <motion.h3 variants={item} className="text-xl font-bold flex items-center gap-2 mb-6 text-white/80">
-                            <Play className="w-5 h-5 text-green-500" /> Vibe Check
-                        </motion.h3>
-                        {results.songs.map((song, idx) => (
-                            <motion.div key={idx} variants={item} className="flex items-start gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition hover:border-white/20 group">
-                                <button 
-                                    onClick={() => openYoutubePreview(song.title, song.artist, song.youtube_link)}
-                                    className="mt-1 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-red-500 group-hover:text-white transition shrink-0 border border-white/10"
-                                >
-                                    <Play className="w-4 h-4 fill-current ml-0.5" />
-                                </button>
-                                <div>
-                                    <h4 className="font-bold text-lg">{song.title}</h4>
-                                    <p className="text-white/60 text-sm">{song.artist}</p>
-                                    <p className="text-sm text-blue-400 mt-2 italic pl-3 border-l-2 border-blue-500/30">
-                                        &quot;{song.lyric}&quot;
-                                    </p>
+                <div className="space-y-12">
+                    <AnimatePresence mode="popLayout">
+                    {history.map((result, hIdx) => (
+                        <motion.div 
+                            key={`vibe-result-${result.id || hIdx}`}
+                            layout
+                            initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            transition={{ duration: 0.4, ease: "easeOut" }}
+                            className={`space-y-6 ${hIdx > 0 ? 'pt-12 border-t border-white/10' : ''}`}
+                        >
+                            {hIdx > 0 && (
+                                <div className="flex items-center gap-4">
+                                    <div className="h-[1px] flex-1 bg-white/10"></div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Previous Result #{history.length - hIdx}</span>
+                                    <div className="h-[1px] flex-1 bg-white/10"></div>
                                 </div>
-                            </motion.div>
-                        ))}
-                    </div>
+                            )}
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {/* Captions Column */}
+                                <div className="space-y-4">
+                                    <h3 className="text-lg md:text-xl font-bold flex items-center gap-2 mb-4 md:mb-6 text-white/80">
+                                        <Type className="w-5 h-5 text-blue-500" /> Viral Captions {hIdx === 0 && <span className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase ml-2 tracking-widest">New</span>}
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {result.captions.map((caption, idx) => (
+                                            <div key={idx} className="group relative p-4 md:p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition hover:border-white/20">
+                                                <p className="text-base md:text-lg font-medium leading-relaxed pr-8 font-mono opacity-90">{caption}</p>
+                                                <button 
+                                                    onClick={() => copyToClipboard(caption, hIdx, idx)}
+                                                    className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white text-white/50 hover:text-black transition"
+                                                    title="Copy"
+                                                >
+                                                    {copiedIndex?.historyIndex === hIdx && copiedIndex?.itemIndex === idx ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Songs Column */}
+                                <div className="space-y-4">
+                                    <h3 className="text-lg md:text-xl font-bold flex items-center gap-2 mb-4 md:mb-6 text-white/80">
+                                        <Play className="w-5 h-5 text-green-500" /> Vibe Check
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {result.songs.map((song, idx) => (
+                                            <div key={idx} className="flex items-start gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition hover:border-white/20 group">
+                                                <button 
+                                                    onClick={() => openYoutubePreview(song.title, song.artist, song.youtube_link)}
+                                                    className="mt-1 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-red-500 group-hover:text-white transition shrink-0 border border-white/10"
+                                                >
+                                                    <Play className="w-4 h-4 fill-current ml-0.5" />
+                                                </button>
+                                                <div className="min-w-0 flex-1">
+                                                    <h4 className="font-bold text-base md:text-lg truncate">{song.title}</h4>
+                                                    <p className="text-white/60 text-xs md:text-sm truncate">{song.artist}</p>
+                                                    <p className="text-xs md:text-sm text-blue-400 mt-2 italic pl-3 border-l-2 border-blue-500/30 line-clamp-2 md:line-clamp-none">
+                                                        &quot;{song.lyric}&quot;
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    ))}
+                    </AnimatePresence>
                 </div>
 
                  {/* Warning Banner (Bottom) */}
-                 <motion.div variants={item} className="flex items-center justify-center gap-2 p-3 opacity-50 text-xs text-center mt-12">
+                 <motion.div variants={item} className="flex items-center justify-center gap-2 p-3 opacity-50 text-xs text-center mt-12 pb-8">
                     <AlertTriangle className="w-3 h-3" />
-                    <p>Don&apos;t refresh! Save your favorites or they&apos;ll be lost.</p>
+                    <p>Don&apos;t refresh! Previous generations will be lost on page reload.</p>
                 </motion.div>
             </motion.div>
           )}
@@ -396,6 +428,7 @@ export default function VibeStudio() {
        <AnimatePresence>
         {showYoutubeModal && (
           <motion.div 
+            key="youtube-modal"
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
