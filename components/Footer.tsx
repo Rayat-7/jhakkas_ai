@@ -12,7 +12,7 @@ export default function Footer() {
             jhakkas<span className="text-rose-500">.ai</span>
           </h3>
           <p className="text-white/40 text-sm">
-            © {new Date().getFullYear()} Jhakkas AI. All vibes reserved.
+            © {new Date().getFullYear()} Raisul Rayat. All vibes reserved.
           </p>
         </div>
 
